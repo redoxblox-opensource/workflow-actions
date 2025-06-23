@@ -1,0 +1,38 @@
+name: 'Mirror Repository'
+description: 'Mirror a branch from the source repository to a target repository in another organization using SSH.'
+
+inputs:
+  ssh_private_key:
+    description: "SSH private key for ssh connection to the target repository"
+    required: false
+  target_repo_url:
+    description: "Target ssh url"
+    required: true
+  source_repo_ref:
+    description: "Source ref to mirror"
+    required: true
+  target_repo_ref:
+    description: "Target ref to mirror to"
+    required: false
+
+runs:
+  using: 'composite'
+  if: ${{ inputs.target_repo_url != github.repositoryURL }}
+  steps:
+    - name: 'Set up SSH key'
+      id: 'setup_ssh'
+      shell: bash
+      run: |
+        mkdir -p ~/.ssh
+        echo "${{ inputs.ssh_private_key }}" > ~/.ssh/id_ed25519
+        chmod 600 ~/.ssh/id_ed25519
+        ssh-keyscan -H github.com >> ~/.ssh/known_hosts
+        eval $(ssh-agent -s)
+        ssh-add ~/.ssh/id_ed25519
+
+    - name: 'Push to target repository'
+      shell: bash
+      run: |
+        git remote add mirror "${{ inputs.target_repo_url }}"
+        git push --tags --force --prune mirror \
+          "refs/remotes/origin/${{ inputs.source_repo_ref }}:refs/heads/${{ inputs.target_repo_ref || inputs.source_repo_ref }}"
